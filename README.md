@@ -1,8 +1,8 @@
-# Coding Agent Sessions (Vicinae extension)
+# Claude Code & Codex tmux Sessions for Vicinae
 
-Lists the tmux panes running Claude Code or Codex, highlights Claude Code sessions waiting on you,
-and jumps to the selected one: switches the most recently active tmux client to that pane and focuses
-the terminal window hosting that client in Hyprland or i3.
+Vicinae extension for finding and switching between tmux panes running Claude Code or Codex. It
+highlights Claude Code sessions waiting on you, then switches the most recently active tmux client
+to the selected pane and focuses its terminal window in Hyprland or i3.
 
 ## How it works
 
