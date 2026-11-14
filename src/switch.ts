@@ -21,6 +21,7 @@ async function mostRecentClient(): Promise<TmuxClient | undefined> {
 type I3Node = {
   id: number;
   pid?: number;
+  window?: number | null;
   nodes?: I3Node[];
   floating_nodes?: I3Node[];
 };
@@ -40,12 +41,30 @@ async function focusHyprlandWindowOf(pid: number): Promise<boolean> {
   return false;
 }
 
-function findI3ContainerId(node: I3Node, pids: Set<number>): number | undefined {
-  if (node.pid !== undefined && pids.has(node.pid)) {
+async function i3NodePid(node: I3Node): Promise<number | undefined> {
+  if (node.pid !== undefined) {
+    return node.pid;
+  }
+  if (node.window === undefined || node.window === null) {
+    return undefined;
+  }
+  try {
+    const output = await run("xprop", ["-id", `0x${node.window.toString(16)}`, "_NET_WM_PID"]);
+    const match = output.match(/=\s*(\d+)/);
+    return match === null ? undefined : Number(match[1]);
+  } catch {
+    // Windows can disappear while the i3 tree is being inspected.
+    return undefined;
+  }
+}
+
+async function findI3ContainerId(node: I3Node, pids: Set<number>): Promise<number | undefined> {
+  const nodePid = await i3NodePid(node);
+  if (nodePid !== undefined && pids.has(nodePid)) {
     return node.id;
   }
   for (const child of [...(node.nodes ?? []), ...(node.floating_nodes ?? [])]) {
-    const id = findI3ContainerId(child, pids);
+    const id = await findI3ContainerId(child, pids);
     if (id !== undefined) {
       return id;
     }
@@ -67,7 +86,7 @@ async function focusI3WindowOf(pid: number): Promise<void> {
   for await (const ancestor of ancestry(pid)) {
     ancestorPids.add(ancestor);
   }
-  const containerId = findI3ContainerId(tree, ancestorPids);
+  const containerId = await findI3ContainerId(tree, ancestorPids);
   if (containerId !== undefined) {
     await run("i3-msg", [`[con_id=${containerId}]`, "focus"]);
   }

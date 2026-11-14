@@ -31,7 +31,7 @@ Nothing in how Claude Code is started or configured changes: no hooks, no wrappe
 - Vicinae 0.28+, Claude Code with `claude agents --json` (2.1.319 tested), tmux 3.x
 - One of:
   - Hyprland with the Lua config (0.55+) for focusing the terminal
-  - i3 with its IPC enabled (the default) and `i3-msg` available for focusing the terminal
+  - i3 with its IPC enabled (the default), plus `i3-msg` and `xprop` available for focusing the terminal
 
 ## Build and install
 
