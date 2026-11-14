@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { ancestry, run } from "./proc";
@@ -7,7 +7,10 @@ export const CLAUDE_SESSION_RECORDS_DIR = join(homedir(), ".claude", "sessions")
 
 export type ClaudeStatus = "busy" | "waiting" | "idle";
 
-export type ClaudeSession = {
+export type AgentKind = "Claude Code" | "Codex";
+
+export type AgentSession = {
+  agent: AgentKind;
   paneId: string;
   windowId: string;
   tmuxSession: string;
@@ -33,7 +36,7 @@ type AgentEntry = {
 };
 
 type Pane = Pick<
-  ClaudeSession,
+  AgentSession,
   "paneId" | "windowId" | "tmuxSession" | "windowIndex" | "windowName" | "paneIndex" | "windowPanes"
 >;
 
@@ -49,7 +52,39 @@ const PANE_FORMAT = [
 ].join("\t");
 
 async function listAgents(): Promise<AgentEntry[]> {
-  return JSON.parse(await run("claude", ["agents", "--json"])) as AgentEntry[];
+  try {
+    return JSON.parse(await run("claude", ["agents", "--json"])) as AgentEntry[];
+  } catch {
+    // Agent discovery is optional: an unavailable or malfunctioning Claude CLI
+    // must not hide sessions supplied by other tools.
+    return [];
+  }
+}
+
+async function listCodexPids(): Promise<number[]> {
+  try {
+    const uid = process.getuid?.();
+    const args = uid === undefined ? ["-eo", "pid=,comm="] : ["-u", String(uid), "-o", "pid=,comm="];
+    const output = await run("ps", args);
+    return output
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/, 2))
+      .filter((parts) => parts[1] === "codex")
+      .map(([pid]) => Number(pid))
+      .filter((pid) => Number.isInteger(pid) && pid > 1);
+  } catch {
+    // Codex discovery is optional, too. In particular, do not fail the Claude
+    // list if process inspection is unavailable.
+    return [];
+  }
+}
+
+async function cwdOf(pid: number): Promise<string | undefined> {
+  try {
+    return await readlink(`/proc/${pid}/cwd`);
+  } catch {
+    return undefined;
+  }
 }
 
 async function listPanesByPid(): Promise<Map<number, Pane>> {
@@ -101,12 +136,12 @@ async function owningPane(pid: number, panes: Map<number, Pane>, claudePids: Set
   return undefined;
 }
 
-export async function listClaudeSessions(): Promise<ClaudeSession[]> {
-  const [agents, panes] = await Promise.all([listAgents(), listPanesByPid()]);
+export async function listAgentSessions(): Promise<AgentSession[]> {
+  const [agents, panes, codexPids] = await Promise.all([listAgents(), listPanesByPid(), listCodexPids()]);
   const claudePids = new Set(agents.flatMap((agent) => (agent.pid === undefined ? [] : [agent.pid])));
 
-  const sessions = await Promise.all(
-    agents.map(async (agent): Promise<ClaudeSession | undefined> => {
+  const claudeSessions = await Promise.all(
+    agents.map(async (agent): Promise<AgentSession | undefined> => {
       if (agent.pid === undefined) {
         return undefined;
       }
@@ -116,6 +151,7 @@ export async function listClaudeSessions(): Promise<ClaudeSession[]> {
       }
       return {
         ...pane,
+        agent: "Claude Code",
         pid: agent.pid,
         cwd: agent.cwd,
         name: agent.name,
@@ -126,7 +162,23 @@ export async function listClaudeSessions(): Promise<ClaudeSession[]> {
     }),
   );
 
-  return sessions
-    .filter((session): session is ClaudeSession => session !== undefined)
+  const codexSessions = await Promise.all(
+    codexPids.map(async (pid): Promise<AgentSession | undefined> => {
+      const [pane, cwd] = await Promise.all([owningPane(pid, panes, new Set<number>()), cwdOf(pid)]);
+      if (!pane || !cwd) {
+        return undefined;
+      }
+      return {
+        ...pane,
+        agent: "Codex",
+        pid,
+        cwd,
+        lastActivity: 0,
+      };
+    }),
+  );
+
+  return [...claudeSessions, ...codexSessions]
+    .filter((session): session is AgentSession => session !== undefined)
     .sort((a, b) => b.lastActivity - a.lastActivity);
 }

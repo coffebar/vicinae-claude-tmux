@@ -1,20 +1,23 @@
-# Claude Code Sessions (Vicinae extension)
+# Coding Agent Sessions (Vicinae extension)
 
-Lists the tmux panes running Claude Code with their live status, highlights the ones waiting on you,
+Lists the tmux panes running Claude Code or Codex, highlights Claude Code sessions waiting on you,
 and jumps to the selected one: switches the most recently active tmux client to that pane and focuses
 the terminal window hosting that client in Hyprland or i3.
 
 ## How it works
 
-- **Status** comes from `claude agents --json`, Claude Code's scripting interface. Interactive
+- **Claude Code status** comes from `claude agents --json`, Claude Code's scripting interface. Interactive
   sessions report `status` (`busy`, `waiting`, `idle`) and, while waiting, `waitingFor`
   (`permission prompt`, `input needed`, `sandbox request`, `worker request`, `dialog open`).
-- **Pane mapping** walks each Claude process's parent chain (`/proc/<pid>/stat`) up to a
+- **Codex sessions** are discovered from interactive `codex` processes. Codex has no equivalent
+  scripting status API, so these are listed as Status Unknown. Codex's stored session history is
+  never read or scanned; closed sessions add no file I/O or list-processing cost.
+- **Pane mapping** walks each Claude Code or Codex process's parent chain (`/proc/<pid>/stat`) up to a
   `#{pane_pid}` from `tmux list-panes -a`. Window names are only displayed, never matched. A Claude
   process nested inside another one (e.g. `claude -p` run from a Bash tool call) is skipped.
 - **Refresh**: the list re-reads on every change in `~/.claude/sessions` (Claude Code rewrites a
   per-process record there on each status change) and polls every 10 s as a fallback, which also
-  picks up tmux-only changes such as window renames.
+  picks up Codex processes and tmux-only changes such as window renames.
 - **Order**: sections go Needs Attention, Working, Idle; inside each, the most recent status change
   comes first. That time is `statusUpdatedAt` from the session's record in `~/.claude/sessions`,
   an undocumented file, since `claude agents --json` exposes no activity timestamp; when the record
@@ -28,7 +31,7 @@ Nothing in how Claude Code is started or configured changes: no hooks, no wrappe
 
 ## Requirements
 
-- Vicinae 0.28+, Claude Code with `claude agents --json` (2.1.319 tested), tmux 3.x
+- Vicinae 0.28+, Claude Code with `claude agents --json` (2.1.319 tested), and/or Codex CLI, tmux 3.x
 - One of:
   - Hyprland with the Lua config (0.55+) for focusing the terminal
   - i3 with its IPC enabled (the default), plus `i3-msg` and `xprop` available for focusing the terminal
@@ -41,7 +44,7 @@ npm run build   # installs into ~/.local/share/vicinae/extensions/claude-tmux
 npm run dev     # development session with live reload and logs
 ```
 
-Run it from Vicinae's root search ("Claude Code Sessions") or bind the toggle deeplink in your compositor config:
+Run it from Vicinae's root search ("Coding Agent Sessions") or bind the toggle deeplink in your compositor config:
 
 Hyprland:
 

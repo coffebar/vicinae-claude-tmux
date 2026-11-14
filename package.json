@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/vicinaehq/vicinae/refs/heads/main/extra/schemas/extension.json",
   "name": "claude-tmux",
-  "title": "Claude Code Sessions",
-  "description": "Browse Claude Code sessions running in tmux and jump to their windows",
+  "title": "Coding Agent Sessions",
+  "description": "Browse Claude Code and Codex sessions running in tmux and jump to their windows",
   "license": "MIT",
   "author": "coffebar",
   "icon": "extension_icon.png",
@@ -10,8 +10,8 @@
   "commands": [
     {
       "name": "claude-sessions",
-      "title": "Claude Code Sessions",
-      "description": "List tmux windows running Claude Code with their live status and switch to one",
+      "title": "Coding Agent Sessions",
+      "description": "List tmux windows running Claude Code or Codex and switch to one",
       "mode": "view"
     }
   ],

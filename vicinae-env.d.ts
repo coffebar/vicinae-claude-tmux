@@ -12,14 +12,14 @@ type ExtensionPreferences = {
 declare type Preferences = ExtensionPreferences
 
 declare namespace Preferences {
-  /** Command: Claude Code Sessions */
+  /** Command: Coding Agent Sessions */
 	export type ClaudeSessions = ExtensionPreferences & {
 		
 	}
 }
 
 declare namespace Arguments {
-  /** Command: Claude Code Sessions */
+  /** Command: Coding Agent Sessions */
 	export type ClaudeSessions = {
 		
 	}

@@ -2,7 +2,7 @@ import { type FSWatcher, watch } from "node:fs";
 import { homedir } from "node:os";
 import { Action, ActionPanel, Color, Icon, List, PopToRootType, closeMainWindow, showHUD } from "@vicinae/api";
 import { useEffect, useState } from "react";
-import { CLAUDE_SESSION_RECORDS_DIR, type ClaudeSession, listClaudeSessions } from "./sessions";
+import { CLAUDE_SESSION_RECORDS_DIR, type AgentSession, listAgentSessions } from "./sessions";
 import { switchToPane } from "./switch";
 
 const POLL_INTERVAL_MS = 10_000;
@@ -24,7 +24,7 @@ const PRESENTATION: Record<Group, { icon: Icon; color: Color; label: string }> =
   unknown: { icon: Icon.QuestionMarkCircle, color: Color.SecondaryText, label: "Unknown" },
 };
 
-function groupOf(session: ClaudeSession): Group {
+function groupOf(session: AgentSession): Group {
   switch (session.status) {
     case "waiting":
       return "attention";
@@ -37,12 +37,12 @@ function groupOf(session: ClaudeSession): Group {
   }
 }
 
-function statusLabel(session: ClaudeSession): string {
+function statusLabel(session: AgentSession): string {
   const reason = session.status === "waiting" ? session.waitingFor : undefined;
   return reason ? reason.charAt(0).toUpperCase() + reason.slice(1) : PRESENTATION[groupOf(session)].label;
 }
 
-function tmuxTarget(session: ClaudeSession): string {
+function tmuxTarget(session: AgentSession): string {
   const window = `${session.tmuxSession}:${session.windowIndex}`;
   return session.windowPanes > 1 ? `${window}.${session.paneIndex}` : window;
 }
@@ -65,7 +65,7 @@ function watchSessionRecords(onChange: () => void): FSWatcher | undefined {
 }
 
 function useClaudeSessions() {
-  const [sessions, setSessions] = useState<ClaudeSession[]>();
+  const [sessions, setSessions] = useState<AgentSession[]>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -80,7 +80,7 @@ function useClaudeSessions() {
         return;
       }
       inFlight = true;
-      listClaudeSessions()
+      listAgentSessions()
         .then((next) => {
           if (!disposed) {
             setSessions(next);
@@ -121,7 +121,7 @@ function useClaudeSessions() {
   return { sessions, error };
 }
 
-async function switchTo(session: ClaudeSession) {
+async function switchTo(session: AgentSession) {
   await closeMainWindow({ clearRootSearch: true, popToRootType: PopToRootType.Immediate });
   try {
     await switchToPane(session.paneId);
@@ -130,7 +130,7 @@ async function switchTo(session: ClaudeSession) {
   }
 }
 
-function SessionItem({ session }: { session: ClaudeSession }) {
+function SessionItem({ session }: { session: AgentSession }) {
   const group = groupOf(session);
   const { icon, color } = PRESENTATION[group];
   const label = statusLabel(session);
@@ -139,11 +139,11 @@ function SessionItem({ session }: { session: ClaudeSession }) {
 
   return (
     <List.Item
-      id={session.paneId}
+      id={`${session.paneId}:${session.pid}`}
       title={session.windowName}
-      subtitle={`${target} · ${path}`}
+      subtitle={`${target} · ${session.agent} · ${path}`}
       icon={{ value: { source: icon, tintColor: color }, tooltip: label }}
-      keywords={[target, path, label, session.name ?? ""]}
+      keywords={[target, path, session.agent, label, session.name ?? ""]}
       accessories={[{ text: session.name }, { tag: { value: label, color } }]}
       actions={
         <ActionPanel>
@@ -164,8 +164,8 @@ export default function ClaudeSessions() {
       ) : (
         <List.EmptyView
           icon={Icon.Terminal}
-          title="No Claude Code sessions in tmux"
-          description="Sessions appear here as soon as Claude Code starts in a tmux pane."
+          title="No Claude Code or Codex sessions in tmux"
+          description="Sessions appear here as soon as either agent starts in a tmux pane."
         />
       )}
       {GROUPS.map(({ group, title }) => {
@@ -173,7 +173,7 @@ export default function ClaudeSessions() {
         return members.length === 0 ? null : (
           <List.Section key={group} title={title} subtitle={String(members.length)}>
             {members.map((session) => (
-              <SessionItem key={session.paneId} session={session} />
+            <SessionItem key={`${session.paneId}:${session.pid}`} session={session} />
             ))}
           </List.Section>
         );
