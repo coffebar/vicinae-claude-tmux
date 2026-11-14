@@ -18,18 +18,66 @@ async function mostRecentClient(): Promise<TmuxClient | undefined> {
     .sort((a, b) => b.activity - a.activity)[0];
 }
 
-async function focusHyprlandWindowOf(pid: number): Promise<void> {
+type I3Node = {
+  id: number;
+  pid?: number;
+  nodes?: I3Node[];
+  floating_nodes?: I3Node[];
+};
+
+async function focusHyprlandWindowOf(pid: number): Promise<boolean> {
   if (!process.env.HYPRLAND_INSTANCE_SIGNATURE) {
-    return;
+    return false;
   }
   const windows = JSON.parse(await run("hyprctl", ["clients", "-j"])) as { pid: number }[];
   const windowPids = new Set(windows.map((window) => window.pid));
   for await (const ancestor of ancestry(pid)) {
     if (windowPids.has(ancestor)) {
       await run("hyprctl", ["dispatch", `hl.dsp.focus({ window = "pid:${ancestor}" })`]);
-      return;
+      return true;
     }
   }
+  return false;
+}
+
+function findI3ContainerId(node: I3Node, pids: Set<number>): number | undefined {
+  if (node.pid !== undefined && pids.has(node.pid)) {
+    return node.id;
+  }
+  for (const child of [...(node.nodes ?? []), ...(node.floating_nodes ?? [])]) {
+    const id = findI3ContainerId(child, pids);
+    if (id !== undefined) {
+      return id;
+    }
+  }
+  return undefined;
+}
+
+async function focusI3WindowOf(pid: number): Promise<void> {
+  let tree: I3Node;
+  try {
+    tree = JSON.parse(await run("i3-msg", ["-t", "get_tree"])) as I3Node;
+  } catch {
+    // i3-msg also serves as the compositor detection: when no i3 IPC socket is
+    // available, switching the tmux client is still useful and should succeed.
+    return;
+  }
+
+  const ancestorPids = new Set<number>();
+  for await (const ancestor of ancestry(pid)) {
+    ancestorPids.add(ancestor);
+  }
+  const containerId = findI3ContainerId(tree, ancestorPids);
+  if (containerId !== undefined) {
+    await run("i3-msg", [`[con_id=${containerId}]`, "focus"]);
+  }
+}
+
+async function focusTerminalWindowOf(pid: number): Promise<void> {
+  if (await focusHyprlandWindowOf(pid)) {
+    return;
+  }
+  await focusI3WindowOf(pid);
 }
 
 export async function switchToPane(paneId: string): Promise<void> {
@@ -38,5 +86,5 @@ export async function switchToPane(paneId: string): Promise<void> {
     throw new Error("No tmux client is attached");
   }
   await run("tmux", ["switch-client", "-c", client.tty, "-t", paneId]);
-  await focusHyprlandWindowOf(client.pid);
+  await focusTerminalWindowOf(client.pid);
 }

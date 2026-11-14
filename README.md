@@ -2,7 +2,7 @@
 
 Lists the tmux panes running Claude Code with their live status, highlights the ones waiting on you,
 and jumps to the selected one: switches the most recently active tmux client to that pane and focuses
-the terminal window hosting that client.
+the terminal window hosting that client in Hyprland or i3.
 
 ## How it works
 
@@ -20,15 +20,18 @@ the terminal window hosting that client.
   an undocumented file, since `claude agents --json` exposes no activity timestamp; when the record
   is unreadable the documented `startedAt` is used instead.
 - **Switching** runs `tmux switch-client -c <tty> -t <pane>` on the client with the latest
-  `client_activity`, then walks that client's parent chain to a Hyprland window and focuses it with
-  `hyprctl dispatch 'hl.dsp.focus({ window = "pid:<pid>" })'`.
+  `client_activity`, then walks that client's parent chain to a terminal window. On Hyprland it
+  focuses the matching PID with `hyprctl`; on i3 it finds the matching window in the IPC layout tree
+  and focuses its `con_id` with `i3-msg`.
 
 Nothing in how Claude Code is started or configured changes: no hooks, no wrappers.
 
 ## Requirements
 
 - Vicinae 0.28+, Claude Code with `claude agents --json` (2.1.319 tested), tmux 3.x
-- Hyprland with the Lua config (0.55+) for focusing the terminal; elsewhere only tmux is switched
+- One of:
+  - Hyprland with the Lua config (0.55+) for focusing the terminal
+  - i3 with its IPC enabled (the default) and `i3-msg` available for focusing the terminal
 
 ## Build and install
 
@@ -38,10 +41,18 @@ npm run build   # installs into ~/.local/share/vicinae/extensions/claude-tmux
 npm run dev     # development session with live reload and logs
 ```
 
-Run it from Vicinae's root search ("Claude Code Sessions") or bind the toggle deeplink to a key:
+Run it from Vicinae's root search ("Claude Code Sessions") or bind the toggle deeplink in your compositor config:
+
+Hyprland:
 
 ```lua
 hl.bind("ALT + K", hl.dsp.exec_cmd("vicinae vicinae://launch/@coffebar/claude-tmux/claude-sessions?toggle=true"))
+```
+
+i3:
+
+```
+bindsym Mod1+k exec --no-startup-id vicinae vicinae://launch/@coffebar/claude-tmux/claude-sessions?toggle=true
 ```
 
 ## Limitations
