@@ -1,5 +1,13 @@
 # Claude Code & Codex tmux Sessions for Vicinae
 
+---
+# Attention!
+
+## Merged into official marketplace https://github.com/vicinaehq/extensions/pull/456
+## Please install from "Extension Store", this repo is archived
+
+---
+
 Vicinae extension for finding and switching between tmux panes running Claude Code or Codex. It
 highlights Claude Code sessions waiting on you, then switches the most recently active tmux client
 to the selected pane and focuses its terminal window in Hyprland or i3.
